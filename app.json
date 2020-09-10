@@ -1,0 +1,13 @@
+{
+  "name": "rnLocTra",
+  "displayName": "rnLocTra",
+  "expo": {
+    "name": "rnLocTra",
+    "slug": "rnLocTra",
+    "version": "1.0.0",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "useNextNotificationsApi": true
+    }
+  }
+}
