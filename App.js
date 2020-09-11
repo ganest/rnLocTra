@@ -10,7 +10,10 @@ import SQLite from "react-native-sqlite-storage";
 import G4MActivityRecognition from "./G4MActivityRecognition";
 
 import { init, insertEvent, fetchLoggedEvents, clearLoggedEvents } from "./helpers/db";
-import { LOCATION_GEOFENCING } from "./helpers/constants";
+import { inPlace } from "./helpers/geospatial";
+import { LOCATION_GEOFENCING, LOCATION_TRACKING } from "./helpers/constants";
+
+import { regions } from "./regions";
 
 let inRegion = new Set();
 
@@ -265,5 +268,25 @@ TaskManager.defineTask(LOCATION_GEOFENCING, async ({ data: { eventType, region }
     await insertEvent(db, `EXIT: ${region.identifier}, ${now}`);
 
     showNotification("ΕΧΙΤ", `${region.identifier}, ${now}`);
+  }
+});
+
+TaskManager.defineTask(LOCATION_TRACKING, async ({ data, error }) => {
+  const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
+  const db = SQLite.openDatabase("logs.db");
+
+  // await insertEvent(db, `${now}, LT task called`);
+  if (error) {
+    await insertEvent(db, `ERROR: ${error.message}`);
+    return;
+  }
+
+  if (data) {
+    const { locations } = data;
+    if (locations && locations[0]) {
+      let lat = locations[0].coords.latitude;
+      let lon = locations[0].coords.longitude;
+      await insertEvent(db, `${now}, ${lat}, ${lon}`);
+    }
   }
 });

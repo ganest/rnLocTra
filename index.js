@@ -2,9 +2,14 @@ import { AppRegistry } from "react-native";
 import * as Location from "expo-location";
 import SQLite from "react-native-sqlite-storage";
 
-
-import { App, initializeRegions  } from "./App";
-import { LOCATION_GEOFENCING, WALKING,STILL, IN_VEHICLE } from "./helpers/constants";
+import { App, initializeRegions } from "./App";
+import {
+  LOCATION_GEOFENCING,
+  LOCATION_TRACKING,
+  WALKING,
+  STILL,
+  IN_VEHICLE,
+} from "./helpers/constants";
 
 import { init, insertEvent } from "./helpers/db";
 import { regions } from "./regions";
@@ -18,6 +23,38 @@ init()
     console.log(err);
   });
 
+// const G4MActivityRecognition = async (taskData) => {
+//   const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
+//   console.log(`Receiving New AR Alert! ${now}`);
+//   console.log(`taskData! ${JSON.stringify(taskData)}`);
+
+//   if (taskData && taskData.label) {
+//     try {
+//       const db = SQLite.openDatabase("logs.db");
+//       await insertEvent(db, `${taskData.label}, ${taskData.confidence}, ${now}`);
+//       if (taskData.label === WALKING || taskData.label === IN_VEHICLE) {
+//         const hasStarted = await Location.hasStartedGeofencingAsync(LOCATION_GEOFENCING);
+//         if (!hasStarted) {
+//           await insertEvent(db, `Initialize regions `);
+//           initializeRegions();
+//           await insertEvent(db, `Try to start geofencing`);
+//           await Location.startGeofencingAsync(LOCATION_GEOFENCING, regions);
+
+//           await insertEvent(db, `User on move geofencing started`);
+//         }
+//       }
+
+//       if (taskData.label === STILL) {
+//         G4MActivityRecognition.still++;
+//         await insertEvent(db, `still counter: ${G4MActivityRecognition.still}`);
+//         console.log(`still counter: ${G4MActivityRecognition.still}`);
+//       }
+//     } catch (err) {
+//       console.log(err);
+//     }
+//   }
+// };
+
 const G4MActivityRecognition = async (taskData) => {
   const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
   console.log(`Receiving New AR Alert! ${now}`);
@@ -28,21 +65,38 @@ const G4MActivityRecognition = async (taskData) => {
       const db = SQLite.openDatabase("logs.db");
       await insertEvent(db, `${taskData.label}, ${taskData.confidence}, ${now}`);
       if (taskData.label === WALKING || taskData.label === IN_VEHICLE) {
-        const hasStarted = await Location.hasStartedGeofencingAsync(LOCATION_GEOFENCING);
+        const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TRACKING);
         if (!hasStarted) {
-          await insertEvent(db, `Initialize regions `);          
-          initializeRegions();
-          await insertEvent(db, `Try to start geofencing`);          
-          await Location.startGeofencingAsync(LOCATION_GEOFENCING, regions);
+          await insertEvent(db, `Try to start location tracking`);
 
-          await insertEvent(db, `User on move geofencing started`);
+          await Location.startLocationUpdatesAsync(LOCATION_TRACKING, {
+            accuracy: Location.Accuracy.Highest,
+            timeInterval: 30000,
+            distanceInterval: 0,
+            foregroundService: {
+              notificationTitle: "GPS",
+              notificationBody: " enabled",
+              notificationColor: "#0000FF",
+            },
+          });
+
+          G4MActivityRecognition.still = 0;
+
+          await insertEvent(db, `User on move location tracking started`);
         }
       }
 
       if (taskData.label === STILL) {
-        G4MActivityRecognition.still++;
-        await insertEvent(db, `still counter: ${G4MActivityRecognition.still}`);  
-        console.log(`still counter: ${G4MActivityRecognition.still}`);
+        const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TRACKING);
+        if (hasStarted) {        
+          G4MActivityRecognition.still++;
+          await insertEvent(db, `still counter: ${G4MActivityRecognition.still}`);
+          if (G4MActivityRecognition.still >= 3) {
+            await Location.stopLocationUpdatesAsync(LOCATION_TRACKING);
+            await insertEvent(db, `location trakcing stopped`);            
+            console.log("location tracking stopped");
+          }
+        }
       }
     } catch (err) {
       console.log(err);
