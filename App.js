@@ -10,12 +10,13 @@ import SQLite from "react-native-sqlite-storage";
 import G4MActivityRecognition from "./G4MActivityRecognition";
 
 import { init, insertEvent, fetchLoggedEvents, clearLoggedEvents } from "./helpers/db";
-import { inPlace } from "./helpers/geospatial";
 import { LOCATION_GEOFENCING, LOCATION_TRACKING } from "./helpers/constants";
 
 import { regions } from "./regions";
+import { inPlace } from "./helpers/geospatial";
 
 let inRegion = new Set();
+// let visitedRegions = [];
 
 export const initializeRegions = () => {
   inRegion = new Set();
@@ -30,20 +31,20 @@ init()
     console.log(err);
   });
 
-// it is called by Task LOCATION_GEOFENCING and have to be global
-const showNotification = async (title, body) => {
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      sound: true,
-      android: {
-        channelId: "G4M-geofencing",
-      },
-    },
-    trigger: null,
-  });
-};
+// // it is called by Task LOCATION_GEOFENCING and have to be global
+// const showNotification = async (title, body) => {
+//   const id = await Notifications.scheduleNotificationAsync({
+//     content: {
+//       title,
+//       body,
+//       sound: true,
+//       android: {
+//         channelId: "G4M-geofencing",
+//       },
+//     },
+//     trigger: null,
+//   });
+// };
 
 function Item({ title }) {
   return (
@@ -75,10 +76,12 @@ export function App() {
       console.log("Tracking started");
     } else {
       await G4MActivityRecognition.stopARTracking();
-      const hasStarted = await Location.hasStartedGeofencingAsync(LOCATION_GEOFENCING);
+      // const hasStarted = await Location.hasStartedGeofencingAsync(LOCATION_GEOFENCING);
+      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TRACKING);
       console.log(hasStarted);
       if (hasStarted) {
-        await Location.stopGeofencingAsync(LOCATION_GEOFENCING);
+        // await Location.stopGeofencingAsync(LOCATION_GEOFENCING);
+        await Location.stopLocationUpdatesAsync(LOCATION_TRACKING);
       }
       setIsTracking(false);
       console.log("Tracking stopped");
@@ -239,54 +242,83 @@ const styles = StyleSheet.create({
   },
 });
 
-TaskManager.defineTask(LOCATION_GEOFENCING, async ({ data: { eventType, region }, error }) => {
-  const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
-  const db = SQLite.openDatabase("logs.db");
+// TaskManager.defineTask(LOCATION_GEOFENCING, async ({ data: { eventType, region }, error }) => {
+//   const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
+//   const db = SQLite.openDatabase("logs.db");
 
-  if (error) {
-    // check `error.message` for more details.
-    await insertEvent(db, `ERROR: ${error}`);
-    return;
-  }
+//   if (error) {
+//     // check `error.message` for more details.
+//     await insertEvent(db, `ERROR: ${error}`);
+//     return;
+//   }
 
-  await insertEvent(db, `${now}, ${eventType}`);
-  // log inRegion
-  await insertEvent(db, `Regions:${[...inRegion]}`);
+//   await insertEvent(db, `${now}, ${eventType}`);
+//   // log inRegion
+//   await insertEvent(db, `Regions:${[...inRegion]}`);
 
-  if (eventType === Location.GeofencingEventType.Enter) {
-    if (inRegion.has(region.identifier)) return; // should never happened... avoid double enter bug of expo
+//   if (eventType === Location.GeofencingEventType.Enter) {
+//     if (inRegion.has(region.identifier)) return; // should never happened... avoid double enter bug of expo
 
-    inRegion.add(region.identifier);
+//     inRegion.add(region.identifier);
 
-    await insertEvent(db, `ENTER: ${region.identifier}, ${now}`);
+//     await insertEvent(db, `ENTER: ${region.identifier}, ${now}`);
 
-    showNotification("ENTER", `${region.identifier}, ${now}: `);
-  } else if (eventType === Location.GeofencingEventType.Exit) {
-    if (!inRegion.has(region.identifier)) return; // has not ever entered, consider it false alarm and ignore
+//     showNotification("ENTER", `${region.identifier}, ${now}: `);
+//   } else if (eventType === Location.GeofencingEventType.Exit) {
+//     if (!inRegion.has(region.identifier)) return; // has not ever entered, consider it false alarm and ignore
 
-    inRegion.delete(region.identifier);
-    await insertEvent(db, `EXIT: ${region.identifier}, ${now}`);
+//     inRegion.delete(region.identifier);
+//     await insertEvent(db, `EXIT: ${region.identifier}, ${now}`);
 
-    showNotification("ΕΧΙΤ", `${region.identifier}, ${now}`);
-  }
-});
+//     showNotification("ΕΧΙΤ", `${region.identifier}, ${now}`);
+//   }
+// });
 
-TaskManager.defineTask(LOCATION_TRACKING, async ({ data, error }) => {
-  const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
-  const db = SQLite.openDatabase("logs.db");
+// TaskManager.defineTask(LOCATION_TRACKING, async ({ data, error }) => {
+//   const now = `${new Date(Date.now()).toLocaleString("el-GR")}`;
+//   const db = SQLite.openDatabase("logs.db");
 
-  // await insertEvent(db, `${now}, LT task called`);
-  if (error) {
-    await insertEvent(db, `ERROR: ${error.message}`);
-    return;
-  }
+//   // await insertEvent(db, `${now}, LT task called`);
+//   if (error) {
+//     await insertEvent(db, `ERROR: ${error.message}`);
+//     return;
+//   }
 
-  if (data) {
-    const { locations } = data;
-    if (locations && locations[0]) {
-      let lat = locations[0].coords.latitude;
-      let lon = locations[0].coords.longitude;
-      await insertEvent(db, `${now}, ${lat}, ${lon}`);
-    }
-  }
-});
+//   if (data) {
+//     const { locations } = data;
+//     if (locations && locations[0]) {
+//       let lat = locations[0].coords.latitude;
+//       let lon = locations[0].coords.longitude;
+//       await insertEvent(db, `${now}, ${lat}, ${lon}`);
+
+//       const regionsEntered = regions.filter((r) =>
+//         inPlace({ lat, lon }, { center: { lat: r.latitude, lon: r.longitude }, radius: r.radius })
+//       );
+
+//       const newVisitedRegions = regionsEntered.filter((r) => {
+//         if (!visitedRegions.find((elm) => elm.identifier === r.identifier)) {
+//           showNotification(("Enter", `${r.identifier}, ${now}`));
+//           return r;
+//         }
+//       });
+
+//       const regionsExited = visitedRegions.filter(
+//         (r) => {
+//           if (!inPlace(
+//             { lat, lon },
+//             { center: { lat: r.latitude, lon: r.longitude }, radius: r.radius }
+//           )) {
+//             showNotification("ΕΧΙΤ", `${r.identifier}, ${now}`);
+//             return r;
+//           }
+//         }
+//       );
+
+//       // update visited regions list
+//       visitedRegions = visitedRegions.map((r) => {
+//         if (!regionsExited.find((elm) => elm.identifier === r.identifier)) return r;
+//       });
+//       visitedRegions = visitedRegions.concat(newVisitedRegions);
+//     }
+//   }
+// });
